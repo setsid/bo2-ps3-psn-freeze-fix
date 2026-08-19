@@ -46,10 +46,11 @@ The call site, in the SP/ZM binary:
 ```
 
 The branch containing this only runs when a lookup fails to find the account in
-a table. Pre 2019 accounts match and never reach it. Sony added PSN ID changes
-in 2019, which changed how accounts key on Activision's side, and accounts
-created after that stopped matching. The bug had been sitting in the binary
-untouched for seven years waiting for someone to walk into it.
+a table. Post 2019 accounts appear to reliably produce that miss, which matches
+the long standing community reports, but I have only tested one account so
+treat the 2019 link as correlation rather than something I have shown here. The
+crash does not care why the lookup missed. The bug had been sitting in the
+binary untouched since 2012, only reachable when that lookup fails.
 
 The line is pure diagnostics. It writes a string into a buffer, sets a flag,
 and returns. No popup, no state change, nothing reads the result. Removing the
