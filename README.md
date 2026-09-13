@@ -1,403 +1,299 @@
-# BO2 PS3 PSN freeze fix
+# MW3 PS3 online fix for accounts made after 2018
 
-![platform](https://img.shields.io/badge/platform-PS3-003791)
-![tested](https://img.shields.io/badge/tested-BLES01717%20TU%201.19-brightgreen)
-![cfw](https://img.shields.io/badge/CFW-Evilnat%204.93%20CEX-lightgrey)
+Call of Duty: Modern Warfare 3, BLES01428, title update 1.24.
 
-Black Ops 2 on PS3 freezes the console whenever a PSN session becomes active:
-at launch while signed in, on a mode switch, or when signing in from inside
-multiplayer. The console stays up, FTP and webMAN keep responding, but the
-game never comes back.
+If your PSN account was made after late 2018, MW3 lets you reach the lobby, shows
+your own name, then throws you back to the multiplayer menu about a second later
+with **Communication with the Activision servers has been interrupted.** Private
+match does it too. Spec Ops is fine.
 
-This is not a server problem and it is not an account ban. It is a bug in the
-game binary, shipped in 2012, which only became reachable in 2019. Two
-instructions cause it, one in each of the two executables. This repo patches
-both.
+This fixes it. 4 bytes in the multiplayer binary, patched and resigned, permanent
+on disk. No memory pokes, no tools running in the background, no workarounds.
 
-Tested on BLES01717 title update 1.19, Evilnat 4.93 CEX Cobra 8.5, PS3 Slim
-CECH-2503B. The patcher locates the fault by instruction pattern rather than a
-fixed offset, so it should work on other regions and updates, but I have only
-verified BLES01717.
-
-There are two ways to apply it. A GUI that does the whole thing in one go,
-which is the easier route and the one most people should take, and the manual
-scetool sequence it wraps. Both are below. The analysis is at the bottom.
+**[Skip to the instructions](#building-it)** if you just want it working.
 
 ---
 
-## Files
+## How this is different to every other fix
 
-Three of them, all in `/dev_hdd0/game/BLES01717/USRDIR/`. Back them up before
-you touch anything.
+Everything else out there is a workaround.
 
-| file | what it is | needs klicensee |
-| --- | --- | --- |
-| `EBOOT.BIN` | campaign and zombies | no |
-| `t6_ps3f.self` | campaign and zombies as well | yes |
-| `t6mp_ps3f.self` | multiplayer | yes |
+* **XUID spoofing.** You borrow somebody else's identifier and play as them. It
+  is the fix most guides push. It didn't sit right with me. It isn't your
+  account, it isn't your identity, and it fixes nothing.
+* **Mod menu account fix.** Changes your name. Same idea in a nicer wrapper.
+* **Modded hosts.** Somebody else has the check removed on their console and you
+  join them. No good for hosting, and no good when nobody is running one.
+* **The X spam race.** Hammer X from the multiplayer menu through to create a
+  class and you get in about 3 times out of 4. It is a timing race, not a fix.
 
-`EBOOT.BIN` and `t6_ps3f.self` decrypt to the same ELF, they are the same
-binary signed twice under different names. Which one the console actually loads
-I have not pinned down, and I suspect it varies, so do both. Earlier versions of
-this readme listed only two files and left `t6_ps3f.self` out. bjocampos tested
-that version on his own console and found multiplayer fixed while campaign and
-zombies still froze, which is how the third file came to light.
+None of them touch the cause. This removes the defect and changes nothing else.
 
-## What you need
+Be clear on what it does and does not do. It does **not** make Demonware accept
+your identifier. The server still rejects it. What it fixes is MW3 killing your
+session over a lookup that never mattered.
 
-Nothing, if you use the GUI. scetool is bundled at `tools/scetool/` with its
-keys, and the GUI finds it on its own.
+---
 
-For the manual route you need that same scetool, which is the one thing that
-can decrypt and re-sign these files. Everything below uses it directly. I would
-avoid TrueAncestor: its output drops the NPDRM header and will not boot on a
-console that checks.
+## What you end up with
 
-Python 3 for either route. The GUI uses tkinter, which ships with the standard
-Windows and macOS Python installers; on Linux it is usually a separate package
-such as `python3-tk`.
+Patched MW3 behaves **exactly the same as stock MW2 does on the same account**.
+Not similar. The same.
 
-scetool is naehrwert's work, bundled here so that the GUI runs without any
-setup. This project is not affiliated with it.
+| | stock MW2 | stock MW3 | patched MW3 |
+|---|---|---|---|
+| Profile lookup | fails, error 110 | fails, error 110 | fails, error 110 |
+| Reaches lobby | yes | yes | yes |
+| Stays in lobby | yes | **no, kicked to menu** | yes |
+| Lobby roster names | `Matched Player` | n/a | `Matched Player` |
+| Scoreboard names | correct | n/a | correct |
+| Stats and rank save | yes | n/a | yes |
+| Plays online | yes | **no** | yes |
 
-One limitation worth knowing before you start: scetool has to run with its own
-folder as the working directory, and Windows will not accept a UNC path for
-that. Run this from a local drive rather than from a network share or a
-`\\wsl$\...` path. The GUI checks for this at startup and says so rather than
-failing partway through a job.
+MW2 has never needed patching and nobody thinks it is broken, and it sits there
+doing the identical thing. That is the whole argument for this being the right
+fix. I am not making MW3 do something strange, I am making it do what its own
+sister title already does when the server gives it the same answer.
 
-## The GUI
+> **Before you go online.** Lobby modders are active on MW3 PS3 and they will
+> rewrite your rank, unlocks and stats without asking. Somebody put me to level
+> 80 with everything unlocked in my first match. There is no stats reset in this
+> game and nobody is manning Demonware support for a 2011 title, so it cannot be
+> undone. If your progression matters, think about that before joining a public
+> playlist.
 
-`bo2-gui.py` does all of it in one window. It reads the signing parameters out
-of your own three files, decrypts them, applies the patch, re-signs with the
-values it read rather than the ones in this readme, and checks the result
-before it writes anything.
+---
 
-```
-python3 bo2-gui.py
-```
+## What actually goes wrong
 
-Point it at the game folder holding all three files, which on the console is
-`/dev_hdd0/game/<TITLE>/USRDIR/`. It checks the three are present, fills in an
-output folder beside it, and enables the button once everything is in place.
-Press it and watch the progress bar. Then carry on at Deploy below.
+On entering a competitive lobby, MW3 asks Demonware for profile info for everyone
+on the roster, up to 18 entries at a time. On an affected account the server
+replies with `BD_INVALID_USER_ID`, error 110.
 
-As soon as the folder is picked it reads the three headers and shows what it
-found: the title ID, what each file is, and its size. That is the point to
-check you have the right game and update before anything happens. If the three
-files turn out to be from different titles it says so and refuses to run,
-because mixing files from two consoles gives you a set that fails on the
-console for no obvious reason.
+The handler that receives that reply treats **any** non zero task error as fatal.
+It calls `Com_Error` at severity 1, which is `ERR_DROP`, and that is what boots
+you back to the menu.
 
-There is nothing to configure. The bundled scetool is used automatically.
-Settings holds a log file next to the output, opening the output folder when
-finished, and verification after signing, all on by default, plus a scetool
-override for anyone who wants a different build or keyset. If your three files
-are scattered rather than in one folder, Advanced lets you choose each one
-separately.
+Private match fails the same way, and a private match roster contains only you.
+So the identifier being rejected is your own.
 
-It will not write into the folder the originals came from, so it defaults to a
-`patched` folder beside it. Everything is built in a temporary folder and only
-moved into place once all three have passed their checks, so a run that fails
-leaves you with nothing rather than with something that half works.
+## Why this is a bug in MW3, not just a dead backend
 
-The checks are the parts that are easy to get wrong by hand:
+This is the part that settled it.
 
-- all three files have to carry the same ContentID, or they are not from the
-  same install
-- `EBOOT.BIN` and `t6_ps3f.self` have to decrypt to the same ELF, and the patch
-  is applied once and used for both
-- each rebuilt file is decrypted again and compared byte for byte against the
-  patched ELF that went into it
-- the ContentID and the CID_FN hash on the rebuilt file have to match the
-  original, because CID_FN is tied to the filename and getting it wrong gives
-  you a file that is perfectly valid and will not load
+I put MW2 on the same console with the same account, completely stock. It joins
+straight away. Watch the lobby and you can see player names appear for about 2
+seconds and then flip to `Matched Player`.
 
-It stops at the first failure and prints what scetool actually said rather than
-a summary of it.
+Same lookup, same failure, same identifier, in a game from a year earlier on the
+same Demonware SDK. MW2 shrugs and carries on. MW3 kills the session.
 
-When it finishes it tells you where the files are and what to do with them.
-Keep your originals: they are the only way back, and they cannot be rebuilt
-from the patched copies.
+The profile data is cosmetic. MW3's mistake was routing it through a generic
+handler where every error is fatal. Activision's own support page lines up: MW2
+from 2009 and Black Ops from 2010 lose progression but stay playable, while MW3
+from 2011 and Black Ops 2 from 2012 become unplayable.
 
-## Doing it by hand
+So the `Matched Player` placeholder after patching is not damage caused by the
+patch. It is what the engine does when profile data is unavailable, and stock MW2
+does exactly the same. Real names still show on the scoreboard because those come
+from the peer to peer session, not the profile service.
 
-The GUI is a wrapper around the following. Nothing here is different, it is
-just manual, and step 2 is the only part that is not scetool.
+---
 
-### 1. Decrypt
-
-scetool decrypts all three directly. `EBOOT.BIN` is free, the two selfs need
-the klicensee:
+## The patch
 
 ```
-scetool -d EBOOT.BIN spzm.elf
-scetool -l 8C10AC1473DF38ADD7A4F2EE8C838DAB -d t6mp_ps3f.self mp.elf
+vaddr        0x00340D20
+file offset  0x00330D20
+before       607C0000    ori r28, r3, 0
+after        3B800000    li  r28, 0
 ```
 
-You only need two ELFs out of the three files, since `EBOOT.BIN` and
-`t6_ps3f.self` give you the same thing.
+The error code is discarded as it is read, so the fatal branch never runs. The
+task then reports success with 0 records, the caller's fill loop runs 0 times,
+and the task is freed on the path it already had. The function containing this
+instruction has exactly 1 caller, so nothing outside the profile lookup changes.
 
+---
 
-### 2. Patch
+## Building it
 
-```
-python3 patch-bo2.py spzm.elf spzm.patched.elf
-python3 patch-bo2.py mp.elf mp.patched.elf
-```
+You need:
 
-Each run prints the address it found and the instruction it replaced. If it
-cannot find the pattern it stops without writing anything.
+* `scetool` 0.2.9 with a keys file containing `appldr` revision `0019` NPDRM.
+  The one bundled with the BO2 Eboot Self Builder works.
+* `patch-mw3.py` from this repo
+* Your own `default_mp.self`, pulled off your console
 
-Expected output for BLES01717 1.19:
+### 1. Pull the binary off the console
 
-```
-"crm %lld %s" at vaddr 0078C384
-call at vaddr 004A80F0 (file 004980F0): 4BCCCE4D -> 60000000
-```
-
-```
-"crm %lld %s" at vaddr 0096AB74
-call at vaddr 0050B414 (file 004FB414): 4BC8FA85 -> 60000000
+```bash
+mkdir -p ~/mw3 && cd ~/mw3
+curl -O ftp://YOUR_PS3_IP/dev_hdd0/game/BLES01428/USRDIR/default_mp.self
+sha1sum default_mp.self
 ```
 
-### 3. Re-sign
+For TU 1.24 that is `1b02160e9daa943789ba5eda7258d1ce47d2df10`. Keep a copy of
+this file. It is your rollback.
 
-One file at a time, with scetool. This is the `t6_ps3f.self` case; the other
-two differ only in `-c`, `-g`, the klicensee, and which ELF goes in.
+### 2. Decrypt
 
-```
-scetool -0 SELF -1 TRUE -s FALSE -2 1C -5 NPDRM \
-  -3 1010000001000003 -4 01000002 -A 0001000000000000 -6 0004002000000000 \
-  -b FREE -c USPRX -f YOUR_CONTENTID -l 8C10AC1473DF38ADD7A4F2EE8C838DAB \
-  -g t6_ps3f.self -e spzm.patched.elf t6_ps3f.patched.self
-```
-
-Read `YOUR_CONTENTID` off your own file with `scetool -i t6_ps3f.self` rather
-than copying mine. On a 1.19 install it is the update ID, something like
-`UP0002-BLUS31011_00-CODBLOPS2PATCH09`, not the disc ID. `-g` has to be the
-name the file will have on the console, it feeds a hash of the filename into
-the header.
-
-That klicensee is the same across regions. scetool needs it because the game
-spawns `t6_ps3f.self` and `t6mp_ps3f.self` with it rather than the free one.
-
-## Deploy
-
-The GUI writes all three under their console names, so the folder it produces
-maps straight across:
+The klicensee is not the free one. It is `InfinityWardKey` as raw ASCII, which
+Infinity Ward left sitting in the loader stub. See below for how that turned up.
 
 ```
-curl -T patched/EBOOT.BIN \
-  ftp://YOUR_PS3_IP/dev_hdd0/game/BLES01717/USRDIR/EBOOT.BIN
-
-curl -T patched/t6_ps3f.self \
-  ftp://YOUR_PS3_IP/dev_hdd0/game/BLES01717/USRDIR/t6_ps3f.self
-
-curl -T patched/t6mp_ps3f.self \
-  ftp://YOUR_PS3_IP/dev_hdd0/game/BLES01717/USRDIR/t6mp_ps3f.self
+scetool.exe -v -l 496E66696E697479576172644B657900 -d default_mp.self default_mp.elf
 ```
 
-Verify what landed:
+You want `Header decrypted`, `Data decrypted`, `ELF written`.
+
+### 3. Patch
+
+```bash
+python3 patch-mw3.py default_mp.elf --check
+python3 patch-mw3.py default_mp.elf -o default_mp_patched.elf
+```
+
+`--check` should report `offset 00330D20` and `state stock` before you patch.
+
+### 4. Resign
 
 ```
-curl -s ftp://YOUR_PS3_IP/dev_hdd0/game/BLES01717/USRDIR/EBOOT.BIN | sha1sum
+scetool.exe -t default_mp.self -0 SELF -1 FALSE -s TRUE -2 0019 -5 NPDRM -A 0001000000000000 -6 0004000000000000 -b FREE -c USPRX -f EP0002-BLES01428_00-MW3P000000000124 -g default_mp.self -l 496E66696E697479576172644B657900 -e default_mp_patched.elf default_mp_patched.self
 ```
 
-All three files are now fake signed, so syscalls must be enabled or none of
-them will boot. Check with `http://YOUR_PS3_IP/syscall8.ps3` and re-create them
-from Evilnat's PSN Tools if they are off.
+Two things there are easy to get wrong. `-c USPRX` is what produces app type
+`0x20` to match the original, despite the name suggesting otherwise. `EXEC` gives
+`0x01` and `UEXEC` gives `0x21`, and neither is right. And `-g` has to be
+`default_mp.self`, the name the file has on the console, because it feeds the
+CID_FN hash.
 
-Reboot the console fully before testing.
+Check the result against the original:
+
+```
+scetool.exe -i default_mp_patched.self
+```
+
+These 5 fields must match the stock file:
+
+```
+Key Revision   0x0019
+SELF-Type      [NPDRM Application]
+Licence Type   0x00000003
+App Type       0x00000020
+ContentID      EP0002-BLES01428_00-MW3P000000000124
+```
+
+### 5. Prove it before you flash it
+
+Decrypt what you just built and confirm the patch survived the round trip:
+
+```
+scetool.exe -v -l 496E66696E697479576172644B657900 -d default_mp_patched.self roundtrip.elf
+```
+
+```bash
+python3 patch-mw3.py roundtrip.elf --check
+```
+
+`state patched` means the file is sound.
+
+### 6. Deploy
+
+Close the game fully first, it is the running binary.
+
+```bash
+curl -T default_mp.self ftp://YOUR_PS3_IP/dev_hdd0/game/BLES01428/USRDIR/default_mp.self.stock
+curl -T default_mp_patched.self ftp://YOUR_PS3_IP/dev_hdd0/game/BLES01428/USRDIR/default_mp.self
+```
+
+Launch, Play Online, Find Game, Team Deathmatch.
+
+---
 
 ## Rolling back
 
-Push your backups over the top. No other files are touched, and nothing is
-written to flash.
-
-## Reference hashes
-
-BLES01717 title update 1.19.
-
-Stock:
-
-```
-6108656  fceadf136dd4fbb6d0cb72f7df4a1eb35f7a33cb  EBOOT.BIN
-6108656  457ba9131098a124b26e80b955722198e48dac35  t6_ps3f.self
-7254288  0099df2812e45fcc36642df0ac014c4e3d4641c9  t6mp_ps3f.self
+```bash
+curl -T default_mp.self ftp://YOUR_PS3_IP/dev_hdd0/game/BLES01428/USRDIR/default_mp.self
 ```
 
-Decrypted, before patching. `EBOOT.BIN` and `t6_ps3f.self` both give the first
-one:
-
-```
-11706540  ecb4be9b614ea0b4529da45ef61f35f62521e519  spzm.elf
-14215768  46b43843c9b553e589a9abb262bfa609d89f9031  mp.elf
-```
-
-These two are not region specific. BLUS31011 and BLES01718 decrypt to the same
-two ELFs as BLES01717, checked across three consoles and two regions, so they
-are worth comparing against whatever region you are on. The signed files above
-and below are not: those differ per region and per set of signing parameters.
-
-Patched, as built here. Your re-signed files will not match these byte for byte
-unless your builder settings are identical, which is fine:
-
-```
-6095184  bf32afcbefe96e1424215ffa5036088007f8d10e  EBOOT.BIN
-7214528  8af1f859c9fc0a96aae7b2e23abf5dd19b2cdce7  t6mp_ps3f.self
-```
+Nothing else is touched and nothing is written to flash.
 
 ---
 
-## What the bug actually is
+## The klicensee
 
-The game builds a log line using a format template, `crm %lld %s`, which means
-"a 64 bit number here, then a string here". The number is supplied correctly.
-The string slot is handed the return value of the millisecond timer instead.
+Worth writing down because everybody hits this wall.
 
-Strings are passed as addresses. So the formatting code takes that timer value,
-treats it as a memory address, and tries to read text from it. In the dump I
-captured the value was 0x602F, 24623 in decimal, roughly 25 seconds of uptime.
-Nothing is mapped there. The read faults, lv2 halts the entire process, and you
-get a frozen game with a live console.
+`default_mp.self` is key revision `0x0019`, NPDRM, licence type 3 which reads as
+free. The standard free klicensee `72F990788F9CFF745725F08E4C128387` is rejected
+by both scetool and RPCS3, and there is no rif or rap on the console to derive
+one from, so it looks unsolvable. It is not.
 
-The call site, in the SP/ZM binary:
-
-```
-004a80cc  lis   r4,0x79
-004a80d0  ori   r31,r3,0        save destination buffer
-004a80d4  addic r30,r4,-0x3c7c  r30 = 0x0078C384  "crm %lld %s"
-004a80d8  bl    <ms timer>
-004a80dc  ori   r7,r3,0         timer return lands in the %s slot
-004a80e0  ori   r3,r31,0        destination
-004a80e4  li    r4,0x1b8        buffer size
-004a80e8  ori   r5,r30,0        format
-004a80ec  ori   r6,r29,0        account id, this one is correct
-004a80f0  bl    <snprintf>      faults
-004a80f4  lis   r3,0xb3
-004a80f8  li    r4,0x1
-004a80fc  stb   r4,-0x2b24(r3)  once only latch
-```
-
-The branch containing this only runs when a lookup fails to find the account in
-a table. Post 2019 accounts appear to reliably produce that miss, which matches
-the long standing community reports, but I have only tested one account so
-treat the 2019 link as correlation rather than something I have shown here. The
-crash does not care why the lookup missed. The bug had been sitting in the
-binary untouched since 2012, only reachable when that lookup fails.
-
-The line is pure diagnostics. It writes a string into a buffer, sets a flag,
-and returns. No popup, no state change, nothing reads the result. Removing the
-call has no effect on anything except that the game stops crashing. That is why
-multiplayer works normally afterwards with no error message: there was never a
-message, only a broken attempt to log something.
-
-## How I found it
-
-Static analysis was a dead end. I traced the Demonware sign in path in Ghidra,
-found the syscall that fetches the account id, and nopped it in both binaries.
-Verified the patch live in memory through PS3MAPI. The game froze in exactly the
-same way, which ruled out the connect path entirely and cost me a fair amount of
-time.
-
-The problem was that I had no way to see where the process was actually stopped.
-PS3MAPI has no thread or register access. CCAPI does not either, despite what
-the marketing implies: its entire API is getProcessList, getProcessName,
-getProcessMemory, setProcessMemory and a few console controls. Neither tool can
-even read the stacks, because lv2 tags pages in the 0xD range as
-SYS_MEMORY_ACCESS_RIGHT_PPU_THR, owning thread only, and the debugger is not the
-owning thread.
-
-What worked was dumping lv2 itself. `dump.ps3?lv2` gives you 8MB containing
-around 216 thread structures, each with the full saved register context:
+MW3's `EBOOT.BIN` is a 74KB loader stub whose only job is to spawn
+`default_mp.self`, which means it has to supply the klicensee. And `EBOOT.BIN` is
+app type `0x21`, which scetool decrypts with no klicensee at all:
 
 ```
-+0x08  name[28]
-+0x24  thread id (high 32 bits)
-+0x70  stack address
-+0x78  stack size
-+0x98  GPR0-31
-+0x198 CR
-+0x1A0 XER
-+0x1A8 LR
-+0x1B0 CTR
-+0x1B8 SRR0, the program counter
-+0x1C0 MSR, bit 0x4000 set means user mode
+scetool.exe -d EBOOT.BIN EBOOT.elf
 ```
 
-Scanning for a stack address in 0xD0000000 to 0xDFFFFFFF immediately followed by
-a plausible stack size finds every structure reliably.
-
-With the game hung, every thread in the process sat in kernel mode except one,
-the main thread, which was in user mode with SRR0 pointing at a `lbz` inside
-strlen. On PowerPC a data storage interrupt leaves SRR0 on the faulting
-instruction rather than past it, and I could confirm that reading was correct by
-comparing against a thread parked in `Sys_Sleep`, whose SRR0 sits after its `sc`
-as it should. r3 and r4 both held 0x602F, which is the argument strlen was
-handed.
-
-Two dumps twenty seconds apart were byte identical across the whole structure,
-while 44 VSH threads changed. The process was not spinning, it was stopped.
-
-From there it was a stack walk. That needed one more piece: full RAM dumps are
-physical, and there is no fixed offset mapping them to process addresses. But
-pages are 4K, so a page's offset within the physical dump shares its low 12 bits
-with its virtual address. That pins each back chain link to exactly one
-candidate offset, and you can recover the mapping by finding the physical page
-where the back chain and the saved LR both validate. Walking that gave a clean
-16 frame stack, which led back through the sign in state machine to the
-formatting call.
-
-One thing worth flagging for anyone doing similar work: the lv2 dump and the RAM
-dump must come from the same hang. I spent a while reading stack data from an
-earlier session against registers from a later one, and it produces results that
-look entirely plausible and are completely wrong.
-
-## Notes
-
-The patch removes a diagnostic log line and nothing else. It does not bypass
-anything, does not touch anti cheat, and does not change how the game talks to
-Demonware. The underlying lookup still fails, exactly as it did before. The only
-difference is that failing to log that failure no longer takes the console down.
-
-The old community workaround, signing out, launching, starting a local match,
-signing in mid match and then going online, is no longer needed.
-
-## Building a single exe
-
-For anyone who would rather hand someone an exe than a Python install.
-Requires PyInstaller (`pip install pyinstaller`) on Windows:
+In the decrypted stub, `0x000103DC` loads `0x0001D4B0` into r3 immediately before
+the spawn call. `sceNpDrmProcessExitSpawn` takes the klicensee as its first
+argument, and at `0x0001D4B0` sits 16 bytes of plain ASCII:
 
 ```
-.\build-exe.ps1
+49 6E 66 69 6E 69 74 79 57 61 72 64 4B 65 79 00     InfinityWardKey.
 ```
 
-It produces `dist\bo2-psn-fix.exe`, which carries `patch-bo2.py`, the whole of
-`tools/scetool/` and the icon inside it. `icon.ico` is a plain placeholder,
-replace it with your own and rebuild if you want something better. The
-equivalent by hand:
+So the key is `496E66696E697479576172644B657900`. It sits 16 bytes before the
+string `Trying to boot NPDRM [%s]`, in the clear, in a 74KB file.
+
+---
+
+## Reference hashes
+
+BLES01428 title update 1.24.
 
 ```
-pyinstaller --onefile --windowed --name bo2-psn-fix ^
-  --add-data "patch-bo2.py;." ^
-  --add-data "tools\scetool;tools/scetool" ^
-  bo2-gui.py
+1b02160e9daa943789ba5eda7258d1ce47d2df10  default_mp.self (stock)
+8ff8f36b3458b53c99241ad1b66a68e4eb180f04  default_mp.elf (decrypted)
+63d7980c9a73f81ccddb554b6d358a9194bc53aa  default_mp_patched.elf
 ```
 
-Both `--add-data` arguments matter. Without the first the patcher is missing
-at run time, and without the second so is scetool. Under `--onefile` they are
-unpacked to a temporary directory and found through `sys._MEIPASS`, which is
-why nothing in the code treats `__file__` as a real location.
+Your resigned `.self` will not match mine byte for byte and does not need to. The
+check that matters is the round trip in step 5.
 
-## Credits
+---
 
-scetool is naehrwert's. A compiled copy and its keys are bundled at
-`tools/scetool/` so the GUI works without any setup. This project is not
-affiliated with it, and nothing here modifies it.
+## Known limitations
 
-bjocampos ran an earlier version of this on his own console and reported that
-multiplayer came back while campaign and zombies still froze. That is what
-turned up the third file: `t6_ps3f.self` was being loaded and was still
-unpatched. Without that test this would have shipped fixing two thirds of the
-game.
+* Other players show as `Matched Player` in the lobby panel. Names are correct on
+  the scoreboard. Not caused by the patch. Stock MW2 on the same account does the
+  identical thing.
+* I saw 1 host migration hang during testing, sent 100% of blocks and never came
+  back. Unclear whether that is the patch or MW3 host migration being MW3 host
+  migration.
+* Multiplayer only. `default.self` (campaign and Spec Ops) is untouched, and Spec
+  Ops online was never affected.
+
+## Tested on
+
+PS3 Slim CECH-2503B, Evilnat 4.93 CEX Cobra 8.5, webMAN MOD 1.47.48q, BLES01428
+title update 1.24, PAL disc installed to internal SSD.
+
+## Files
+
+* `patch-mw3.py` binary patcher. Locates the site by a 16 byte signature rather
+  than a fixed offset, refuses if it matches more than once, cross checks against
+  the program headers, and will not double patch. `--check` and `--restore`
+  included.
+* `docs/analysis.md` how the bug was found, addresses, call chain, the ruled out
+  list, and instrumentation notes
+* `docs/mw3-bdlobby-error-codes.md` the full `BD_*` enum, 189 entries, pulled out
+  of the code to name table in the binary. Shared across Call of Duty titles, so
+  useful well beyond MW3.
+
+## Licence
+
+Do what you like with it.
