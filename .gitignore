@@ -3,3 +3,7 @@ build/
 *.spec
 __pycache__/
 *.bak
+test-bo2-gui.py
+test-fixtures/
+icon.ico
+icon.png
