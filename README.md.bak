@@ -132,12 +132,19 @@ the klicensee:
 
 ```
 scetool -d EBOOT.BIN spzm.elf
+scetool -l 8C10AC1473DF38ADD7A4F2EE8C838DAB -d t6_ps3f.self spzm.elf
 scetool -l 8C10AC1473DF38ADD7A4F2EE8C838DAB -d t6mp_ps3f.self mp.elf
 ```
 
 You only need two ELFs out of the three files, since `EBOOT.BIN` and
 `t6_ps3f.self` give you the same thing.
 
+Earlier versions of this readme said scetool could not decrypt the two selfs
+and that the builder had to be used. That was written before the klicensee had
+been recovered, and without `-l` scetool does fail with "Could not decrypt
+header". With it, it works. The builder still does the job if you would rather
+use it: it leaves the decrypted ELF at `Tools/Temp/tmp.elf`, so copy that out
+and rename it before doing the next one or you will overwrite it.
 
 ### 2. Patch
 
