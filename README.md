@@ -126,20 +126,30 @@ mirror, it lives on NGU behind a free login:
 
 `https://www.nextgenupdate.com/forums/black-ops-2-modding-tools/783979-releasecexdexbo2-eboot-self-builder-2.html`
 
-Back up your originals first. Both live in
+Back up your originals first. All three live in
 `/dev_hdd0/game/BLES01717/USRDIR/`:
 
-- `EBOOT.BIN`, the campaign and zombies launcher
+- `EBOOT.BIN`, campaign and zombies
+- `t6_ps3f.self`, campaign and zombies as well
 - `t6mp_ps3f.self`, multiplayer
+
+`EBOOT.BIN` and `t6_ps3f.self` decrypt to the same ELF, they are the same
+binary signed twice under different names. Which one the console actually loads
+I have not pinned down, and I suspect it varies, so do both. Earlier versions of
+this readme listed only two files and left `t6_ps3f.self` out, which on at least
+one console meant multiplayer was fixed while campaign and zombies still froze.
 
 ### 1. Decrypt
 
 Run each file through the builder. It leaves the decrypted ELF at
-`Tools/Temp/tmp.elf`. Copy that out and rename it before doing the second one,
+`Tools/Temp/tmp.elf`. Copy that out and rename it before doing the next one,
 or you will overwrite it.
 
-scetool will not decrypt `t6mp_ps3f.self` directly, it fails with "Could not
-decrypt header". Use the builder.
+You only need two ELFs out of the three files, since `EBOOT.BIN` and
+`t6_ps3f.self` give you the same thing.
+
+scetool will not decrypt `t6mp_ps3f.self` or `t6_ps3f.self` directly, it fails
+with "Could not decrypt header". Use the builder.
 
 ### 2. Patch
 
@@ -179,11 +189,33 @@ it. If you feed it the multiplayer ELF and tick EBOOT.BIN, you will get a file
 called EBOOT.BIN containing multiplayer, and pushing that to the console
 replaces your zombies launcher. Check the file sizes.
 
+The builder has no tick box for `t6_ps3f.self`, so that one has to be signed
+with scetool directly, feeding it the same patched SP/ZM ELF:
+
+```
+scetool -0 SELF -1 TRUE -s FALSE -2 1C -5 NPDRM \
+  -3 1010000001000003 -4 01000002 -A 0001000000000000 -6 0004002000000000 \
+  -b FREE -c USPRX -f YOUR_CONTENTID -l 8C10AC1473DF38ADD7A4F2EE8C838DAB \
+  -g t6_ps3f.self -e spzm.patched.elf t6_ps3f.patched.self
+```
+
+Read `YOUR_CONTENTID` off your own file with `scetool -i t6_ps3f.self` rather
+than copying mine. On a 1.19 install it is the update ID, something like
+`UP0002-BLUS31011_00-CODBLOPS2PATCH09`, not the disc ID. `-g` has to be the
+name the file will have on the console, it feeds a hash of the filename into
+the header.
+
+That klicensee is the same across regions. scetool needs it because the game
+spawns `t6_ps3f.self` and `t6mp_ps3f.self` with it rather than the free one.
+
 ### 4. Deploy
 
 ```
 curl -T "Output/(BLES01717)EBOOT.BIN" \
   ftp://YOUR_PS3_IP/dev_hdd0/game/BLES01717/USRDIR/EBOOT.BIN
+
+curl -T t6_ps3f.patched.self \
+  ftp://YOUR_PS3_IP/dev_hdd0/game/BLES01717/USRDIR/t6_ps3f.self
 
 curl -T "Output/(BLES01717)t6mp_ps3f.self" \
   ftp://YOUR_PS3_IP/dev_hdd0/game/BLES01717/USRDIR/t6mp_ps3f.self
@@ -195,9 +227,9 @@ Verify what landed:
 curl -s ftp://YOUR_PS3_IP/dev_hdd0/game/BLES01717/USRDIR/EBOOT.BIN | sha1sum
 ```
 
-Both files are now fake signed, so syscalls must be enabled or neither will
-boot. Check with `http://YOUR_PS3_IP/syscall8.ps3` and re-create them from
-Evilnat's PSN Tools if they are off.
+All three files are now fake signed, so syscalls must be enabled or none of
+them will boot. Check with `http://YOUR_PS3_IP/syscall8.ps3` and re-create them
+from Evilnat's PSN Tools if they are off.
 
 Reboot the console fully before testing.
 
@@ -209,7 +241,16 @@ Stock:
 
 ```
 6108656  fceadf136dd4fbb6d0cb72f7df4a1eb35f7a33cb  EBOOT.BIN
+6108656  457ba9131098a124b26e80b955722198e48dac35  t6_ps3f.self
 7254288  0099df2812e45fcc36642df0ac014c4e3d4641c9  t6mp_ps3f.self
+```
+
+Decrypted, before patching. `EBOOT.BIN` and `t6_ps3f.self` both give the first
+one:
+
+```
+11706540  ecb4be9b614ea0b4529da45ef61f35f62521e519  spzm.elf
+14215768  46b43843c9b553e589a9abb262bfa609d89f9031  mp.elf
 ```
 
 Patched, as built here. Your re-signed files will not match these byte for byte
