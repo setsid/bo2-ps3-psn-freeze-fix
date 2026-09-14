@@ -1,5 +1,17 @@
 # BO2 PS3 PSN freeze fix
 
+> ### There is a tool that does all of this for you
+>
+> If you would rather not work through the steps below, **PS3 Tools** does the whole thing over your network. Point it at your console and it finds the game, checks which of the three files still need the fix, backs the originals up to your Desktop, applies the patch, and reads the files back off the console to confirm it worked.
+>
+> You need a PS3 running custom firmware with webMAN MOD on the same network as your PC, and nothing else. No files to copy off the console, and no scetool command lines to get right.
+>
+> **[Download PS3 Tools](https://github.com/setsid/ps3-tools/releases/latest)**
+>
+> The rest of this page is the manual route, and the explanation of what the fix actually changes. It is still the place to look if you want to do it yourself, or to understand what the tool is doing on your behalf.
+
+---
+
 ![platform](https://img.shields.io/badge/platform-PS3-003791)
 ![tested](https://img.shields.io/badge/tested-BLES01717%20TU%201.19-brightgreen)
 ![cfw](https://img.shields.io/badge/CFW-Evilnat%204.93%20CEX-lightgrey)
